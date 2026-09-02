@@ -127,13 +127,10 @@ class SEOmatic_Connect {
 	 * wp-admin/authorize-application.php (WordPress core issues the
 	 * Application Password; SEOmatic never sees the admin's real password). */
 	public static function connect_url() {
-		return add_query_arg(
-			array(
-				'site'   => rawurlencode( home_url() ),
-				'source' => 'wp-plugin',
-			),
-			SEOMATIC_CONNECT_APP_URL . '/connect/wordpress'
-		);
+		// Built by hand, not add_query_arg: its value-encoding behavior varies
+		// across WP versions and a double-encoded site URL breaks the connect.
+		return SEOMATIC_CONNECT_APP_URL . '/connect/wordpress?site='
+			. rawurlencode( home_url() ) . '&source=wp-plugin';
 	}
 
 	public static function render_settings_page() {
