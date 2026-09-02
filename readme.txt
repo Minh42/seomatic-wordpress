@@ -1,0 +1,59 @@
+=== SEOmatic Connect ===
+Contributors: seomatic
+Tags: seo, ai, search console, agents, audit
+Requires at least: 5.6
+Tested up to: 6.8
+Requires PHP: 7.4
+Stable tag: 1.0.0
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+
+AI SEO agents for your WordPress site: they read your Search Console, find the fixes that matter, and apply them with your approval.
+
+== Description ==
+
+SEOmatic Connect links your WordPress site to [SEOmatic](https://seomatic.ai), where AI SEO agents do the work nobody has time for:
+
+* **Find what matters** - pages stuck just off page 1, titles losing clicks, content that is slipping, keyword cannibalization, and whether a traffic dip is real or seasonal - all from your own Google Search Console data.
+* **Fix it with your approval** - on paid plans, agents write and refresh posts, rewrite titles and metas, and add internal links. Every change is a diff you approve first, with one-click revert.
+* **Stay fresh** - the plugin can notify SEOmatic the moment you publish or delete content, so its picture of your site is never stale.
+
+This plugin is deliberately thin: the analysis and the agents run in the SEOmatic service. The plugin gives you a one-click connection (via WordPress core's own Application Passwords - SEOmatic never sees your password), a dashboard status card, and instant content-freshness pings.
+
+**A SEOmatic account is required** (free to create, no card). The free plan includes connecting your site and Search Console plus all analysis and chat features, with a monthly question quota. Applying fixes to your site is part of paid plans, from $99/month. See [pricing](https://seomatic.ai/pricing).
+
+== External services ==
+
+This plugin communicates with the SEOmatic service (app.seomatic.ai), operated by SEOmatic, **only after you connect**:
+
+* When you save a SEOmatic API key, the plugin verifies it against SEOmatic's API and shows your connection status (the key and your site's URL are sent).
+* When you configure the freshness webhook URL, publishing/deleting content sends SEOmatic the post ID and event type (no content).
+* The plugin sends nothing anywhere before you connect.
+
+SEOmatic's [Terms](https://seomatic.ai/terms) and [Privacy Policy](https://seomatic.ai/privacy) apply to the connected service.
+
+== Installation ==
+
+1. Install and activate the plugin.
+2. Go to Settings > SEOmatic and click **Connect to SEOmatic**.
+3. Sign in (or create a free account), and approve the connection on your own wp-admin Application Passwords screen.
+4. Optional: paste a SEOmatic API key for the dashboard status card, and the freshness webhook URL from SEOmatic's Connections page.
+
+== Frequently Asked Questions ==
+
+= Does SEOmatic get my WordPress password? =
+
+No. The connection uses WordPress core's Application Passwords: your site issues a scoped credential on a screen inside your own wp-admin, and you can revoke it there at any time.
+
+= What is free and what is paid? =
+
+Connecting, Search Console analysis, and chat questions are free (monthly quota). Agents applying fixes to your site are paid, always with your approval and one-click revert.
+
+= Does the plugin slow my site down? =
+
+No. It adds no front-end code at all. The only requests it makes are a cached hourly status check in wp-admin and an optional non-blocking ping when you publish or delete content.
+
+== Changelog ==
+
+= 1.0.0 =
+* Initial release: one-click connect, dashboard status card, content-freshness pings.
