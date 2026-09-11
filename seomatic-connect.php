@@ -46,8 +46,8 @@ class SEOmatic_Connect {
 		// POST when the site owner has pasted a webhook URL - the plugin
 		// phones nowhere before an explicit connection.
 		add_action( 'save_post', array( __CLASS__, 'ping_freshness' ), 10, 3 );
-		add_action( 'deleted_post', array( __CLASS__, 'ping_freshness_simple' ) );
-		add_action( 'trashed_post', array( __CLASS__, 'ping_freshness_simple' ) );
+		add_action( 'deleted_post', array( __CLASS__, 'ping_freshness_deleted' ) );
+		add_action( 'trashed_post', array( __CLASS__, 'ping_freshness_deleted' ) );
 	}
 
 	public static function action_links( $links ) {
@@ -287,6 +287,33 @@ class SEOmatic_Connect {
 			return;
 		}
 		if ( ! $post instanceof WP_Post || 'publish' !== $post->post_status ) {
+			return;
+		}
+		// Only PUBLIC post types. save_post also fires for plugin internals
+		// (ACF field groups, menu items, block templates); SEOmatic indexes
+		// what is publicly reachable, so pinging for the rest is pure noise.
+		$type = get_post_type_object( $post->post_type );
+		if ( ! $type || empty( $type->public ) ) {
+			return;
+		}
+		self::ping_freshness_simple( $post_id );
+	}
+
+	/** deleted_post/trashed_post variant: these fire for REVISIONS and
+	 * auto-drafts too, and WordPress deletes every revision of a post before
+	 * the post itself — so an unguarded handler sent one ping per revision, a
+	 * burst of dozens for a single deletion that the receiver then has to
+	 * debounce. Filter to real, public content first. */
+	public static function ping_freshness_deleted( $post_id ) {
+		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+			return;
+		}
+		$post = get_post( $post_id );
+		if ( ! $post instanceof WP_Post ) {
+			return;
+		}
+		$type = get_post_type_object( $post->post_type );
+		if ( ! $type || empty( $type->public ) ) {
 			return;
 		}
 		self::ping_freshness_simple( $post_id );

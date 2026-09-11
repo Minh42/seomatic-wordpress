@@ -1,8 +1,8 @@
 === SEOmatic Connect ===
 Contributors: seomatic
-Tags: seo, ai, search console, agents, audit
+Tags: seo, ai, search console, content optimization, seo audit
 Requires at least: 5.6
-Tested up to: 6.8
+Tested up to: 7.1
 Requires PHP: 7.4
 Stable tag: 1.0.0
 License: GPLv2 or later
@@ -57,3 +57,4 @@ No. It adds no front-end code at all. The only requests it makes are a cached ho
 
 = 1.0.0 =
 * Initial release: one-click connect, dashboard status card, content-freshness pings.
+* Freshness pings are limited to public post types, and deleting a post sends one ping instead of one per revision.
