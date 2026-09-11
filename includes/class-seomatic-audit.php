@@ -150,6 +150,10 @@ class SEOmatic_Audit {
 				'done'    => $done,
 				'scanned' => $state['scanned'],
 				'total'   => $total,
+				// Running per-check counts: the scan UI reveals findings AS
+				// they are discovered — the moment of discovery is the whole
+				// product, and a bare counter wastes it.
+				'counts'  => $state['counts'],
 			)
 		);
 	}
