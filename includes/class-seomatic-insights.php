@@ -47,6 +47,55 @@ class SEOmatic_Insights {
 				'permission_callback' => '__return_true',
 			)
 		);
+		register_rest_route(
+			'seomatic/v1',
+			'/ask',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( __CLASS__, 'proxy_ask' ),
+				// Admin-only, cookie+nonce authenticated (X-WP-Nonce). The
+				// proxy exists so the SEOmatic API key NEVER reaches browser
+				// JS — it stays server-side and rides only this hop.
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' );
+				},
+			)
+		);
+	}
+
+	/** Rung 3: forward one question to SEOmatic's /api/v1/ask. */
+	public static function proxy_ask( WP_REST_Request $request ) {
+		$api_key = get_option( 'seomatic_connect_api_key', '' );
+		if ( '' === $api_key ) {
+			return new WP_Error( 'no_key', 'No SEOmatic account connected.', array( 'status' => 400 ) );
+		}
+		$question = trim( (string) $request->get_param( 'question' ) );
+		if ( '' === $question || mb_strlen( $question ) > 2000 ) {
+			return new WP_Error( 'bad_question', 'Question required (max 2000 chars).', array( 'status' => 400 ) );
+		}
+		$response = wp_remote_post(
+			SEOMATIC_CONNECT_APP_URL . '/api/v1/ask',
+			array(
+				'timeout' => 60,
+				'headers' => array(
+					'Content-Type'  => 'application/json',
+					'Authorization' => 'Bearer ' . $api_key,
+				),
+				'body'    => wp_json_encode( array( 'question' => $question ) ),
+			)
+		);
+		if ( is_wp_error( $response ) ) {
+			return new WP_Error( 'upstream', 'SEOmatic could not be reached.', array( 'status' => 502 ) );
+		}
+		$code = wp_remote_retrieve_response_code( $response );
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $body ) ) {
+			return new WP_Error( 'upstream', 'Unexpected answer from SEOmatic.', array( 'status' => 502 ) );
+		}
+		// Pass the app's own status through — 402 is the quota wall and
+		// carries the upgrade path in `error`; the UI relays it verbatim
+		// (never refuse on the user's behalf).
+		return new WP_REST_Response( $body, $code );
 	}
 
 	/** Mint (or reuse) the connect nonce and build the consent URL. */
@@ -83,6 +132,16 @@ class SEOmatic_Insights {
 		delete_transient( self::CACHE_TRANSIENT );
 
 		return rest_ensure_response( array( 'ok' => true ) );
+	}
+
+	/** The signup URL, carrying the grant token so the new account lands
+	 * with Search Console already connected (SEOmatic claims it at signup). */
+	public static function signup_url() {
+		$token = get_option( self::TOKEN_OPTION, '' );
+		$base  = SEOMATIC_CONNECT_APP_URL . '/connect/wp-insights/signup';
+		return '' === $token
+			? SEOMATIC_CONNECT_APP_URL . '/signup?src=wp-plugin'
+			: $base . '?gsc_grant=' . rawurlencode( $token );
 	}
 
 	public static function connected() {

@@ -171,7 +171,7 @@ class SEOmatic_Audit_Page {
 					<a class="button button-primary" href="<?php echo esc_url( SEOmatic_Insights::connect_url() ); ?>">
 						<?php esc_html_e( 'Reconnect', 'seomatic-connect' ); ?>
 					</a>
-					<a class="button" href="<?php echo esc_url( SEOMATIC_CONNECT_APP_URL . '/signup?src=wp-plugin' ); ?>" target="_blank" rel="noopener">
+					<a class="button" href="<?php echo esc_url( SEOmatic_Insights::signup_url() ); ?>" target="_blank" rel="noopener">
 						<?php esc_html_e( 'Create free account', 'seomatic-connect' ); ?>
 					</a>
 				</p>
@@ -203,6 +203,37 @@ class SEOmatic_Audit_Page {
 			);
 			?>
 		</p>
+		<?php
+		// The fleet benchmark — present only when BOTH sides are solid
+		// (site above the impression floor AND a k-anonymous fleet). Absent
+		// = render nothing; never a fabricated comparison.
+		if ( ! empty( $data['benchmark'] ) && is_array( $data['benchmark'] ) ) :
+			$b = $data['benchmark'];
+			?>
+			<div class="seomatic-benchmark">
+				<strong>
+					<?php
+					printf(
+						/* translators: %s: multiplier like 0.85 */
+						esc_html__( 'Your click-through efficiency: %s×.', 'seomatic-connect' ),
+						esc_html( number_format_i18n( $b['ownCtrEfficiency'], 2 ) )
+					);
+					?>
+				</strong>
+				<?php
+				printf(
+					/* translators: 1: median multiplier, 2: number of sites */
+					esc_html__( 'Sites like yours: median %1$s× (across %2$s sites).', 'seomatic-connect' ),
+					esc_html( number_format_i18n( $b['fleet']['median'], 2 ) ),
+					esc_html( number_format_i18n( $b['workspaces'] ) )
+				);
+				if ( 'behind' === $b['standing'] ) {
+					echo ' ' . esc_html__( 'Your titles and metas are leaving clicks on the table — the cards below say where.', 'seomatic-connect' );
+				}
+				?>
+			</div>
+		<?php endif; ?>
+		<?php self::render_ask_box(); ?>
 		<div class="seomatic-cards">
 			<?php
 			self::gsc_card(
@@ -277,10 +308,36 @@ class SEOmatic_Audit_Page {
 			<h2><?php esc_html_e( 'Want to ask questions about this data?', 'seomatic-connect' ); ?></h2>
 			<p><?php esc_html_e( 'A free SEOmatic account lets you ask in plain language — "why is this page losing clicks?" — and keeps this connection permanent. Paid plans add agents that write the fixes and stage them for your approval; nothing ever changes your site without you.', 'seomatic-connect' ); ?></p>
 			<p>
-				<a class="button button-primary" href="<?php echo esc_url( SEOMATIC_CONNECT_APP_URL . '/signup?src=wp-plugin' ); ?>" target="_blank" rel="noopener">
+				<a class="button button-primary" href="<?php echo esc_url( SEOmatic_Insights::signup_url() ); ?>" target="_blank" rel="noopener">
 					<?php esc_html_e( 'Create free account', 'seomatic-connect' ); ?>
 				</a>
 			</p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Rung 3: ask a question in plain language. Rendered only when a
+	 * SEOmatic API key is saved (Settings) — the question is proxied
+	 * server-side so the key never reaches browser JS. Free accounts get
+	 * the monthly allowance; the answer's remaining count renders as the
+	 * know-your-remaining footer, and a quota wall relays the app's own
+	 * upgrade message verbatim.
+	 */
+	private static function render_ask_box() {
+		if ( ! get_option( 'seomatic_connect_api_key', '' ) ) {
+			return;
+		}
+		?>
+		<div class="seomatic-askbox">
+			<label for="seomatic-ask-input"><strong><?php esc_html_e( 'Ask about your search data', 'seomatic-connect' ); ?></strong></label>
+			<div class="seomatic-askrow">
+				<input type="text" id="seomatic-ask-input" class="regular-text"
+					placeholder="<?php esc_attr_e( 'Why is my traffic down this month?', 'seomatic-connect' ); ?>" />
+				<button class="button" id="seomatic-ask-send"><?php esc_html_e( 'Ask', 'seomatic-connect' ); ?></button>
+			</div>
+			<div id="seomatic-ask-answer" hidden></div>
+			<p class="seomatic-note" id="seomatic-ask-footer"></p>
 		</div>
 		<?php
 	}
@@ -453,6 +510,23 @@ class SEOmatic_Audit_Page {
 			. '.catch(function(){out.textContent=' . wp_json_encode( __( 'Scan failed — try again.', 'seomatic-connect' ) ) . ';btn.disabled=false;});'
 			. '}'
 			. 'btn.addEventListener("click",function(){btn.disabled=true;out.textContent="…";chunk(true);});'
+			. 'var ask=document.getElementById("seomatic-ask-send");'
+			. 'if(ask){var inp=document.getElementById("seomatic-ask-input"),ans=document.getElementById("seomatic-ask-answer"),foot=document.getElementById("seomatic-ask-footer");'
+			. 'var askUrl=' . wp_json_encode( esc_url_raw( rest_url( 'seomatic/v1/ask' ) ) ) . ';'
+			. 'function send(){var qn=inp.value.trim();if(!qn)return;ask.disabled=true;ans.hidden=false;'
+			. 'ans.textContent=' . wp_json_encode( __( 'Thinking…', 'seomatic-connect' ) ) . ';'
+			. 'fetch(askUrl,{method:"POST",headers:{"Content-Type":"application/json","X-WP-Nonce":nonce},body:JSON.stringify({question:qn})})'
+			. '.then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})'
+			. '.then(function(x){'
+			// Relay the app's own message on any failure (the 402 quota
+			// wall carries the upgrade path inside `error` by design).
+			. 'ans.textContent=x.ok?(x.d.answer||""):(x.d.error||x.d.message||"Error");'
+			. 'foot.textContent=(x.ok&&typeof x.d.remaining_questions==="number")?'
+			. '(x.d.remaining_questions+" "+' . wp_json_encode( __( 'free questions left this month', 'seomatic-connect' ) ) . '):"";'
+			. 'ask.disabled=false;})'
+			. '.catch(function(){ans.textContent=' . wp_json_encode( __( 'SEOmatic could not be reached.', 'seomatic-connect' ) ) . ';ask.disabled=false;});}'
+			. 'ask.addEventListener("click",send);'
+			. 'inp.addEventListener("keydown",function(e){if(e.key==="Enter")send();});}'
 			. '})();'
 		);
 
@@ -478,6 +552,11 @@ class SEOmatic_Audit_Page {
 			. '.seomatic-review-ask{background:#fff;border-left:4px solid #00a32a;padding:1px 12px;margin:12px 0}'
 			. '.seomatic-ladder{background:#fff;border:1px solid #dcdcde;border-radius:4px;padding:8px 20px 20px;margin-top:24px;max-width:640px}'
 			. '.seomatic-note{color:#646970}'
+			. '.seomatic-benchmark{background:#fff;border-left:4px solid #2271b1;padding:10px 14px;margin:8px 0 16px;max-width:640px}'
+			. '.seomatic-askbox{background:#fff;border:1px solid #dcdcde;border-radius:4px;padding:14px 16px;margin:0 0 16px;max-width:640px}'
+			. '.seomatic-askrow{display:flex;gap:8px;margin:8px 0}'
+			. '#seomatic-ask-input{flex:1}'
+			. '#seomatic-ask-answer{white-space:pre-wrap;border-top:1px solid #f0f0f1;padding-top:10px;margin-top:4px}'
 		);
 		// Silence the unused-parameter sniff without dropping the seam: the
 		// results shape may drive conditional assets later.
