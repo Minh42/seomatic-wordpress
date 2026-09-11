@@ -16,3 +16,4 @@ delete_option( 'seomatic_gsc_grant_domain' );
 delete_transient( 'seomatic_connect_status' );
 delete_transient( 'seomatic_gsc_connect_nonce' );
 delete_transient( 'seomatic_gsc_insights' );
+delete_transient( 'seomatic_key_exchange_backoff' );

@@ -144,6 +144,49 @@ class SEOmatic_Insights {
 			: $base . '?gsc_grant=' . rawurlencode( $token );
 	}
 
+	/**
+	 * Zero-paste key delivery: once the visitor's signup has claimed the
+	 * grant, the grant token can be traded ONCE for a free-scoped API key
+	 * (the app's /api/v1/wp-key, single-use latch server-side). Tried
+	 * lazily on audit-page loads — cheap, and a 10-minute backoff keeps an
+	 * unclaimed grant from probing on every refresh. Returns true when a
+	 * key was just delivered (the page shows a one-time notice).
+	 */
+	public static function maybe_exchange_key() {
+		if ( '' !== get_option( 'seomatic_connect_api_key', '' ) ) {
+			return false; // already keyed (pasted or previously exchanged).
+		}
+		$token = get_option( self::TOKEN_OPTION, '' );
+		if ( '' === $token || get_transient( 'seomatic_key_exchange_backoff' ) ) {
+			return false;
+		}
+		set_transient( 'seomatic_key_exchange_backoff', 1, 10 * MINUTE_IN_SECONDS );
+		$response = wp_remote_post(
+			SEOMATIC_CONNECT_APP_URL . '/api/v1/wp-key',
+			array(
+				'timeout' => 10,
+				'headers' => array( 'Content-Type' => 'application/json' ),
+				'body'    => wp_json_encode(
+					array(
+						'grantToken' => $token,
+						'domain'     => get_option( self::DOMAIN_OPTION, '' ),
+					)
+				),
+			)
+		);
+		if ( is_wp_error( $response ) ) {
+			return false;
+		}
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $body ) || empty( $body['found'] ) || empty( $body['apiKey'] )
+			|| ! preg_match( '/^smk_[A-Za-z0-9_]{8,128}$/', (string) $body['apiKey'] ) ) {
+			return false;
+		}
+		update_option( 'seomatic_connect_api_key', (string) $body['apiKey'] );
+		delete_transient( 'seomatic_connect_status' );
+		return true;
+	}
+
 	public static function connected() {
 		return '' !== get_option( self::TOKEN_OPTION, '' );
 	}

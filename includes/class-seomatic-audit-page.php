@@ -123,6 +123,14 @@ class SEOmatic_Audit_Page {
 	 * silently empty dashboard).
 	 */
 	private static function render_gsc_section() {
+		// Zero-paste key delivery: if the visitor signed up, their grant
+		// token buys the API key right here. One-time success notice.
+		if ( SEOmatic_Insights::maybe_exchange_key() ) {
+			printf(
+				'<div class="notice notice-success inline"><p>%s</p></div>',
+				esc_html__( 'Your SEOmatic account is linked — you can now ask questions about your search data below.', 'seomatic-connect' )
+			);
+		}
 		// Return-status from the consent handoff (?seomatic-gsc=...).
 		$status = isset( $_GET['seomatic-gsc'] )
 			? sanitize_key( wp_unslash( $_GET['seomatic-gsc'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only status flag, no state change.
