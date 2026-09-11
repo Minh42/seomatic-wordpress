@@ -109,6 +109,213 @@ class SEOmatic_Audit_Page {
 			<?php else : ?>
 				<?php self::render_results( $results ); ?>
 			<?php endif; ?>
+
+			<?php self::render_gsc_section(); ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Rung 2: the Search Console section. Three states — not connected
+	 * (the ladder CTA, the ONLY forward pitch on this page, asking for a
+	 * Google connection, not money), connected (the four findings), and
+	 * expired (the 30-day grant died: an honest reconnect prompt, never a
+	 * silently empty dashboard).
+	 */
+	private static function render_gsc_section() {
+		// Return-status from the consent handoff (?seomatic-gsc=...).
+		$status = isset( $_GET['seomatic-gsc'] )
+			? sanitize_key( wp_unslash( $_GET['seomatic-gsc'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only status flag, no state change.
+			: '';
+		if ( 'connected' === $status ) {
+			printf(
+				'<div class="notice notice-success inline"><p>%s</p></div>',
+				esc_html__( 'Google Search Console connected. Your search data appears below.', 'seomatic-connect' )
+			);
+		} elseif ( 'denied' === $status ) {
+			printf(
+				'<div class="notice notice-warning inline"><p>%s</p></div>',
+				esc_html__( 'The Google connection was cancelled. You can retry any time.', 'seomatic-connect' )
+			);
+		} elseif ( '' !== $status && 'connected' !== $status ) {
+			printf(
+				'<div class="notice notice-error inline"><p>%s</p></div>',
+				esc_html__( 'The connection could not be delivered to this site. Please try again.', 'seomatic-connect' )
+			);
+		}
+
+		if ( ! SEOmatic_Insights::connected() ) {
+			?>
+			<div class="seomatic-ladder">
+				<h2><?php esc_html_e( 'Which of these actually cost you clicks?', 'seomatic-connect' ); ?></h2>
+				<p>
+					<?php esc_html_e( 'This scan sees your pages. Google Search Console sees your searchers: which keywords sit one step from page 1, which pages rank well but never get clicked, and which of your pages compete with each other. Connect it (free, read-only) to rank these fixes by real traffic impact.', 'seomatic-connect' ); ?>
+				</p>
+				<p>
+					<a class="button button-primary" href="<?php echo esc_url( SEOmatic_Insights::connect_url() ); ?>">
+						<?php esc_html_e( 'Connect Google Search Console', 'seomatic-connect' ); ?>
+					</a>
+				</p>
+			</div>
+			<?php
+			return;
+		}
+
+		$data = SEOmatic_Insights::insights();
+		if ( 'expired' === $data ) {
+			?>
+			<div class="seomatic-ladder">
+				<h2><?php esc_html_e( 'Search Console connection expired', 'seomatic-connect' ); ?></h2>
+				<p><?php esc_html_e( 'Connections last 30 days. Reconnect to keep the insights updating — or create a free SEOmatic account and it stays connected permanently.', 'seomatic-connect' ); ?></p>
+				<p>
+					<a class="button button-primary" href="<?php echo esc_url( SEOmatic_Insights::connect_url() ); ?>">
+						<?php esc_html_e( 'Reconnect', 'seomatic-connect' ); ?>
+					</a>
+					<a class="button" href="<?php echo esc_url( SEOMATIC_CONNECT_APP_URL . '/signup?src=wp-plugin' ); ?>" target="_blank" rel="noopener">
+						<?php esc_html_e( 'Create free account', 'seomatic-connect' ); ?>
+					</a>
+				</p>
+			</div>
+			<?php
+			return;
+		}
+		if ( ! is_array( $data ) ) {
+			printf(
+				'<p class="seomatic-note">%s</p>',
+				esc_html__( 'Search Console data is temporarily unavailable — your cached insights will refresh automatically.', 'seomatic-connect' )
+			);
+			return;
+		}
+		self::render_gsc_cards( $data );
+	}
+
+	private static function render_gsc_cards( array $data ) {
+		$i = $data['insights'];
+		?>
+		<h2><?php esc_html_e( 'What your searchers see', 'seomatic-connect' ); ?></h2>
+		<p class="seomatic-note">
+			<?php
+			printf(
+				/* translators: 1: number of days, 2: human time diff */
+				esc_html__( 'From your own Google Search Console, last %1$d days. Updated %2$s ago.', 'seomatic-connect' ),
+				(int) $data['windowDays'],
+				esc_html( human_time_diff( $data['fetched_at'] ) )
+			);
+			?>
+		</p>
+		<div class="seomatic-cards">
+			<?php
+			self::gsc_card(
+				(int) $i['strikingDistance']['count'],
+				__( 'Keywords one step from page 1', 'seomatic-connect' ),
+				__( 'Position 11-20: real demand your pages almost reach. These are the cheapest wins in SEO.', 'seomatic-connect' ),
+				$i['strikingDistance']['rows'],
+				function ( $r ) {
+					return array(
+						$r['query'],
+						sprintf(
+							/* translators: 1: position, 2: impressions */
+							__( 'position %1$s · %2$s impressions', 'seomatic-connect' ),
+							number_format_i18n( $r['position'], 1 ),
+							number_format_i18n( $r['impressions'] )
+						),
+					);
+				}
+			);
+			self::gsc_card(
+				(int) $i['ctrOutliers']['count'],
+				__( 'Rankings nobody clicks', 'seomatic-connect' ),
+				__( 'These rank on page 1 but earn under half the clicks that position normally pays. The title and meta are the usual suspects.', 'seomatic-connect' ),
+				$i['ctrOutliers']['rows'],
+				function ( $r ) {
+					return array(
+						$r['query'],
+						sprintf(
+							/* translators: %s: estimated missed clicks */
+							__( '~%s missed clicks / 28 days', 'seomatic-connect' ),
+							number_format_i18n( $r['missedClicks'] )
+						),
+					);
+				}
+			);
+			self::gsc_card(
+				(int) $i['cannibalization']['count'],
+				__( 'Pages competing with each other', 'seomatic-connect' ),
+				__( 'Two of your pages splitting one query dilute both. Usually one should win and the other should link to it.', 'seomatic-connect' ),
+				$i['cannibalization']['rows'],
+				function ( $r ) {
+					return array(
+						$r['query'],
+						sprintf(
+							/* translators: %d: number of competing pages */
+							_n( '%d page competing', '%d pages competing', count( $r['pages'] ), 'seomatic-connect' ),
+							count( $r['pages'] )
+						),
+					);
+				}
+			);
+			self::gsc_card(
+				(int) $i['opportunityPages']['count'],
+				__( 'Pages worth editing first', 'seomatic-connect' ),
+				__( 'Your striking-distance demand, grouped by the page already ranking for it. Start at the top.', 'seomatic-connect' ),
+				$i['opportunityPages']['rows'],
+				function ( $r ) {
+					return array(
+						$r['page'],
+						sprintf(
+							/* translators: 1: query count, 2: impressions */
+							__( '%1$d keywords · %2$s impressions', 'seomatic-connect' ),
+							(int) $r['strikingQueries'],
+							number_format_i18n( $r['impressions'] )
+						),
+					);
+				}
+			);
+			?>
+		</div>
+		<div class="seomatic-ladder">
+			<h2><?php esc_html_e( 'Want to ask questions about this data?', 'seomatic-connect' ); ?></h2>
+			<p><?php esc_html_e( 'A free SEOmatic account lets you ask in plain language — "why is this page losing clicks?" — and keeps this connection permanent. Paid plans add agents that write the fixes and stage them for your approval; nothing ever changes your site without you.', 'seomatic-connect' ); ?></p>
+			<p>
+				<a class="button button-primary" href="<?php echo esc_url( SEOMATIC_CONNECT_APP_URL . '/signup?src=wp-plugin' ); ?>" target="_blank" rel="noopener">
+					<?php esc_html_e( 'Create free account', 'seomatic-connect' ); ?>
+				</a>
+			</p>
+		</div>
+		<?php
+	}
+
+	/** One GSC finding card: count, story, capped example rows. */
+	private static function gsc_card( $count, $label, $fix, array $rows, $format ) {
+		?>
+		<div class="seomatic-card <?php echo $count ? 'has-issues' : 'clean'; ?>">
+			<div class="seomatic-card-count"><?php echo esc_html( number_format_i18n( $count ) ); ?></div>
+			<div class="seomatic-card-label"><?php echo esc_html( $label ); ?></div>
+			<?php if ( $count ) : ?>
+				<p class="seomatic-card-fix"><?php echo esc_html( $fix ); ?></p>
+				<details>
+					<summary>
+						<?php
+						printf(
+							/* translators: %d: number of rows shown */
+							esc_html__( 'Show details (%d)', 'seomatic-connect' ),
+							count( $rows )
+						);
+						?>
+					</summary>
+					<table class="widefat striped seomatic-rows">
+						<tbody>
+						<?php foreach ( $rows as $r ) : ?>
+							<?php list( $main, $note ) = call_user_func( $format, $r ); ?>
+							<tr>
+								<td><?php echo esc_html( $main ); ?></td>
+								<td class="seomatic-row-note"><?php echo esc_html( $note ); ?></td>
+							</tr>
+						<?php endforeach; ?>
+						</tbody>
+					</table>
+				</details>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
@@ -223,21 +430,6 @@ class SEOmatic_Audit_Page {
 			<?php
 		}
 
-		// The ladder's next rung — the ONLY forward pitch on this page, and
-		// it asks for a Google connection, not money.
-		?>
-		<div class="seomatic-ladder">
-			<h2><?php esc_html_e( 'Which of these actually cost you clicks?', 'seomatic-connect' ); ?></h2>
-			<p>
-				<?php esc_html_e( 'This scan sees your pages. Google Search Console sees your searchers: which keywords sit one step from page 1, which pages rank well but never get clicked, and which of your pages compete with each other. Connect it (free, read-only) to rank these fixes by real traffic impact.', 'seomatic-connect' ); ?>
-			</p>
-			<p>
-				<a class="button button-primary" href="<?php echo esc_url( SEOmatic_Connect::connect_url() ); ?>">
-					<?php esc_html_e( 'Connect Google Search Console', 'seomatic-connect' ); ?>
-				</a>
-			</p>
-		</div>
-		<?php
 	}
 
 	/** Inline assets, registered only on this page — no front-end footprint. */

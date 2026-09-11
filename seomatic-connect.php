@@ -30,6 +30,7 @@ define( 'SEOMATIC_CONNECT_APP_URL', 'https://app.seomatic.ai' );
 // are self-guarded and register nothing outside wp-admin.
 require_once __DIR__ . '/includes/class-seomatic-audit.php';
 require_once __DIR__ . '/includes/class-seomatic-audit-page.php';
+require_once __DIR__ . '/includes/class-seomatic-insights.php';
 
 /**
  * Options:
@@ -379,3 +380,4 @@ class SEOmatic_Connect {
 SEOmatic_Connect::init();
 SEOmatic_Audit::init();
 SEOmatic_Audit_Page::init();
+SEOmatic_Insights::init();
