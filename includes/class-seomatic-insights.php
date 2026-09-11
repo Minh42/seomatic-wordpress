@@ -81,7 +81,13 @@ class SEOmatic_Insights {
 					'Content-Type'  => 'application/json',
 					'Authorization' => 'Bearer ' . $api_key,
 				),
-				'body'    => wp_json_encode( array( 'question' => $question ) ),
+				'body'    => wp_json_encode(
+					array(
+						'question' => $question,
+						// Funnel attribution: names the surface, grants nothing.
+						'client'   => 'wp-plugin',
+					)
+				),
 			)
 		);
 		if ( is_wp_error( $response ) ) {
