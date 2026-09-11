@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       SEOmatic Connect
  * Plugin URI:        https://seomatic.ai/integrations/wordpress
- * Description:       Connect your WordPress site to SEOmatic: AI SEO agents that read your Search Console, find the fixes that matter, and apply them with your approval.
+ * Description:       One-click local SEO audit of every post and page, plus AI SEO agents that read your Search Console, find the fixes that matter, and apply them with your approval.
  * Version:           1.0.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
@@ -25,6 +25,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'SEOMATIC_CONNECT_VERSION', '1.0.0' );
 define( 'SEOMATIC_CONNECT_APP_URL', 'https://app.seomatic.ai' );
+
+// Rung 1 of the value ladder: the local, no-consent site audit. Both files
+// are self-guarded and register nothing outside wp-admin.
+require_once __DIR__ . '/includes/class-seomatic-audit.php';
+require_once __DIR__ . '/includes/class-seomatic-audit-page.php';
 
 /**
  * Options:
@@ -53,7 +58,7 @@ class SEOmatic_Connect {
 	public static function action_links( $links ) {
 		$settings = sprintf(
 			'<a href="%s">%s</a>',
-			esc_url( admin_url( 'options-general.php?page=seomatic-connect' ) ),
+			esc_url( admin_url( 'admin.php?page=seomatic-connect' ) ),
 			esc_html__( 'Settings', 'seomatic-connect' )
 		);
 		array_unshift( $links, $settings );
@@ -61,9 +66,13 @@ class SEOmatic_Connect {
 	}
 
 	public static function admin_menu() {
-		add_options_page(
+		// Settings live UNDER the SEOmatic top-level menu (registered by
+		// SEOmatic_Audit_Page at priority 9, so the parent exists by now).
+		// The page slug stays 'seomatic-connect' so old links keep working.
+		add_submenu_page(
+			'seomatic',
 			__( 'SEOmatic Connect', 'seomatic-connect' ),
-			__( 'SEOmatic', 'seomatic-connect' ),
+			__( 'Settings', 'seomatic-connect' ),
 			'manage_options',
 			'seomatic-connect',
 			array( __CLASS__, 'render_settings_page' )
@@ -246,8 +255,11 @@ class SEOmatic_Connect {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
-		if ( ! get_option( 'seomatic_connect_api_key', '' ) ) {
-			return; // Nothing to show pre-connect; no nag widgets (guideline 11).
+		// Pre-connect the widget appears only once a scan has RESULTS to
+		// show — a widget with nothing but a pitch would be the nag banner
+		// guideline 11 forbids. With an API key it shows connection status.
+		if ( ! get_option( 'seomatic_connect_api_key', '' ) && ! SEOmatic_Audit::results() ) {
+			return;
 		}
 		wp_add_dashboard_widget(
 			'seomatic_connect_widget',
@@ -257,6 +269,26 @@ class SEOmatic_Connect {
 	}
 
 	public static function render_widget() {
+		// Audit summary first — it is the thing a pre-connect install has.
+		$audit = SEOmatic_Audit::results();
+		if ( $audit ) {
+			$issues = array_sum( $audit['counts'] );
+			printf(
+				'<p><strong>%s</strong> <a href="%s">%s</a></p>',
+				esc_html(
+					sprintf(
+						/* translators: %d: number of findings */
+						_n( '%d SEO problem found on your site.', '%d SEO problems found on your site.', $issues, 'seomatic-connect' ),
+						$issues
+					)
+				),
+				esc_url( admin_url( 'admin.php?page=seomatic' ) ),
+				esc_html__( 'View audit', 'seomatic-connect' )
+			);
+		}
+		if ( ! get_option( 'seomatic_connect_api_key', '' ) ) {
+			return; // Audit-only install: no account status to report.
+		}
 		$status = self::account_status();
 		if ( empty( $status['ok'] ) ) {
 			printf(
@@ -345,3 +377,5 @@ class SEOmatic_Connect {
 }
 
 SEOmatic_Connect::init();
+SEOmatic_Audit::init();
+SEOmatic_Audit_Page::init();
