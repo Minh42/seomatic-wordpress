@@ -3,7 +3,7 @@
  * Plugin Name:       SEOmatic Connect
  * Plugin URI:        https://seomatic.ai/integrations/wordpress
  * Description:       One-click local SEO audit of every post and page, plus AI SEO agents that read your Search Console, find the fixes that matter, and apply them with your approval.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            SEOmatic
@@ -31,6 +31,7 @@ define( 'SEOMATIC_CONNECT_APP_URL', 'https://app.seomatic.ai' );
 require_once __DIR__ . '/includes/class-seomatic-audit.php';
 require_once __DIR__ . '/includes/class-seomatic-audit-page.php';
 require_once __DIR__ . '/includes/class-seomatic-insights.php';
+require_once __DIR__ . '/includes/class-seomatic-crawlers.php';
 
 /**
  * Options:
@@ -42,6 +43,7 @@ class SEOmatic_Connect {
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
 		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
+		add_action( 'admin_init', array( 'SEOmatic_Crawlers', 'register_settings' ) );
 		add_action( 'wp_dashboard_setup', array( __CLASS__, 'dashboard_widget' ) );
 		add_filter(
 			'plugin_action_links_' . plugin_basename( __FILE__ ),
@@ -54,6 +56,7 @@ class SEOmatic_Connect {
 		add_action( 'save_post', array( __CLASS__, 'ping_freshness' ), 10, 3 );
 		add_action( 'deleted_post', array( __CLASS__, 'ping_freshness_deleted' ) );
 		add_action( 'trashed_post', array( __CLASS__, 'ping_freshness_deleted' ) );
+		SEOmatic_Crawlers::init();
 	}
 
 	public static function action_links( $links ) {
@@ -215,6 +218,7 @@ class SEOmatic_Connect {
 							</p>
 						</td>
 					</tr>
+					<?php SEOmatic_Crawlers::render_settings_row(); ?>
 				</table>
 				<?php submit_button(); ?>
 			</form>

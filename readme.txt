@@ -4,7 +4,7 @@ Tags: seo, seo audit, search console, ai, content optimization
 Requires at least: 5.6
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -81,6 +81,9 @@ Connecting, Search Console analysis, and chat questions are free (monthly quota)
 No. It adds no front-end code at all. The only requests it makes are a cached hourly status check in wp-admin and an optional non-blocking ping when you publish or delete content.
 
 == Changelog ==
+
+= 1.1.0 =
+* New: AI-crawler analytics — see visits from GPTBot, ChatGPT-User, PerplexityBot, ClaudeBot and other AI bots in your SEOmatic dashboard. Paste the endpoint from SEOmatic (AI Visibility page); human visitors are never logged, and the ping is non-blocking so your site is never slowed.
 
 = 1.0.0 =
 * Initial release: one-click local SEO audit (titles, meta descriptions, thin content, alt text, accidental noindex) with a prioritized fix-first list.
